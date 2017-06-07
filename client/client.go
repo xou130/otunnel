@@ -15,6 +15,7 @@ import (
 	"github.com/ooclab/es"
 	"github.com/ooclab/es/ecrypt"
 	"github.com/ooclab/es/link"
+	"github.com/ooclab/otunnel"
 )
 
 // StartDefaultConnect start connection to a default server
@@ -28,7 +29,7 @@ func StartDefaultConnect(addr string) (net.Conn, error) {
 }
 
 // StartAESConnect start connection to a aes server
-func StartAESConnect(addr string, secret string) (net.Conn, error) {
+func StartAESConnect(addr string, secret []byte) (net.Conn, error) {
 	return StartDefaultConnect(addr)
 }
 
@@ -60,7 +61,9 @@ type Client struct {
 	addr string
 
 	// aes connection needed!
-	secret string
+	secret []byte
+
+	keepaliveInterval time.Duration
 
 	// tls connection needed!
 	caFile   string
@@ -78,13 +81,14 @@ func newClient(c *cli.Context) (*Client, error) {
 	addr := c.Args().First()
 
 	client := &Client{
-		Proto:    c.String("proto"),
-		addr:     addr,
-		secret:   c.String("secret"),
-		caFile:   c.String("ca"),
-		certFile: c.String("cert"),
-		keyFile:  c.String("key"),
-		tunnels:  c.StringSlice("tunnel"),
+		Proto:             c.String("proto"),
+		addr:              addr,
+		secret:            otunnel.GenSecret(c.String("secret"), c.Int("keyiter"), c.Int("keylen")),
+		keepaliveInterval: time.Duration(c.Int("keepalive")) * time.Second,
+		caFile:            c.String("ca"),
+		certFile:          c.String("cert"),
+		keyFile:           c.String("key"),
+		tunnels:           c.StringSlice("tunnel"),
 	}
 
 	if len(client.secret) > 0 {
@@ -134,7 +138,7 @@ func (client *Client) connectTCP() (es.Conn, error) {
 
 	if client.Type == "aes" {
 		// TODO: custom cipher for each connection
-		cipher := ecrypt.NewCipher("aes256cfb", []byte(client.secret))
+		cipher := ecrypt.NewCipher("aes256cfb", client.secret)
 		conn = es.NewSafeConn(rawConn, cipher)
 	} else {
 		conn = es.NewBaseConn(rawConn)
@@ -168,19 +172,21 @@ func (client *Client) startTCP() {
 			continue
 		}
 
-		l := link.NewLink(&link.LinkConfig{IsServerSide: false})
-		go func() {
-			// FIXME!
-			time.Sleep(1 * time.Second)
-			for _, t := range client.tunnels {
-				proto, localHost, localPort, remoteHost, remotePort, reverse, err := parseTunnel(t)
-				if err != nil {
-					panic(err)
-				}
-				l.OpenTunnel(proto, localHost, localPort, remoteHost, remotePort, reverse)
-			}
-		}()
+		l := link.NewLink(&link.LinkConfig{
+			IsServerSide:      false,
+			KeepaliveInterval: client.keepaliveInterval,
+		})
 		l.Bind(conn)
+
+		for _, t := range client.tunnels {
+			proto, localHost, localPort, remoteHost, remotePort, reverse, err := parseTunnel(t)
+			if err != nil {
+				panic(err)
+			}
+			l.OpenTunnel(proto, localHost, localPort, remoteHost, remotePort, reverse)
+		}
+
+		l.Wait()
 		l.Close()
 		time.Sleep(1 * time.Second) // TODO: sleep smartly
 	}

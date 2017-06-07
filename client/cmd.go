@@ -23,9 +23,22 @@ var Command = cli.Command{
 			Name:  "s, secret",
 			Usage: "secret phrase",
 		},
+		cli.IntFlag{
+			Name:  "keyiter",
+			Usage: "key iter times for pbkdf2",
+		},
+		cli.IntFlag{
+			Name:  "keylen",
+			Usage: "key length for pbkdf2",
+		},
 		cli.StringSliceFlag{
 			Name:  "t, tunnel",
 			Usage: "new tunnel",
+		},
+		cli.IntFlag{
+			Name:  "keepalive",
+			Value: 30,
+			Usage: "keepalive interval",
 		},
 	},
 	Action: func(c *cli.Context) {
