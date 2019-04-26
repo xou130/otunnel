@@ -8,30 +8,18 @@ GODEP=$(GOTEST) -i
 GOFMT=gofmt -w
 # LDFLAGS=-ldflags "-s"
 LDFLAGS=-ldflags "-s -X main.buildstamp=`date '+%Y-%m-%d_%H:%M:%S_%z'` -X main.githash=`git rev-parse HEAD`"
-#LDFLAGS=
+STATIC_LDFLAGS=-a -installsuffix cgo -ldflags "-s -X main.buildstamp=`date '+%Y-%m-%d_%H:%M:%S_%z'` -X main.githash=`git rev-parse HEAD`"
 
 PROGRAM_NAME=otunnel
 
 all:
-	cd cmd/otunnel; $(GOBUILD) -v $(LDFLAGS) -o $(PROGRAM_NAME)
+	$(GOBUILD) -v $(LDFLAGS) -o $(PROGRAM_NAME)
+static:
+	CGO_ENABLED=0 $(GOBUILD) -v $(STATIC_LDFLAGS) -o $(PROGRAM_NAME)
 
 install:
 	$(GOINSTALL) -v
 
 clean:
-	@rm $(PROGRAM_NAME)
+	@rm $(PROGRAM_NAME)*
 
-mac:
-	GOOS=darwin GOARCH=amd64 $(GOBUILD) -v $(LDFLAGS) -o $(PROGRAM_NAME)
-linux-64:
-	GOOS=linux GOARCH=amd64 $(GOBUILD) -v $(LDFLAGS) -o $(PROGRAM_NAME)
-linux-32:
-	GOOS=linux GOARCH=386 $(GOBUILD) -v $(LDFLAGS) -o $(PROGRAM_NAME)
-windows-64:
-	GOOS=windows GOARCH=amd64 $(GOBUILD) -v $(LDFLAGS) -o $(PROGRAM_NAME)
-windows-32:
-	GOOS=windows GOARCH=386 $(GOBUILD) -v $(LDFLAGS) -o $(PROGRAM_NAME)
-ddwrt:
-	GOARCH=arm GOOS=linux GOARM=5 $(GOBUILD) -v $(LDFLAGS) -o $(PROGRAM_NAME)
-arm:
-	GOARCH=arm GOOS=linux GOARM=7 $(GOBUILD) -v $(LDFLAGS) -o $(PROGRAM_NAME)
